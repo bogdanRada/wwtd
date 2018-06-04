@@ -21,7 +21,7 @@ module WWTD
       ignored = (config.keys - UNDERSTOOD - Array(options[:use])) + Array(options[:ignore])
 
       calculate_local_ruby_matrix = (
-        ignored.include?("rvm") &&
+      ignored.include?("rvm") &&
         Array(config["rvm"]).include?(RUBY_VERSION) &&
         config["matrix"]
       )
@@ -39,18 +39,14 @@ module WWTD
 
     def run(matrix, options, &block)
       with_clean_dot_bundle do
-        with_clean_env do
-          Dir.mktmpdir do |lock|
-            in_multiple_threads(matrix.each_with_index, options[:parallel]) do |config, i|
-              # set env as parallel_tests does to reuse existing infrastructure
-              env = {}
-              env["TEST_ENV_NUMBER"] = (i == 0 ? "" : (i + 1).to_s) if options[:parallel]
-              if options[:only_bundle]
-                config['script'] = 'test "only bundle"'
-              end
-              Run.new(config, env, lock).execute(&block)
-            end
+        in_multiple_threads(matrix.each_with_index, options[:parallel]) do |config, i|
+          # set env as parallel_tests does to reuse existing infrastructure
+          env = {}
+          env["TEST_ENV_NUMBER"] = (i == 0 ? "" : (i + 1).to_s) if options[:parallel]
+          if options[:only_bundle]
+            config['script'] = 'test "only bundle"'
           end
+          Run.new(config, env, Dir.pwd).execute(&block)
         end
       end
     end
@@ -60,16 +56,14 @@ module WWTD
     def escaped_env(env, options={})
       return "" if env.empty?
 
-      if options[:rerun] && gemfile = env["BUNDLE_GEMFILE"]
-        env["BUNDLE_GEMFILE"] = gemfile.sub("#{Dir.pwd}/", "")
-      end
-
-      env = env.map { |k,v| "#{k}=#{Shellwords.escape(v)}" }
-      if options[:rerun]
-        env.join(" ") + " "
-      else
-        env.map { |e| "export #{e}" }.join(" && ") + " && "
-      end
+      env_array = env.map { |k,v| "#{k}=#{Shellwords.escape(v)}" }
+      str = if options[:rerun]
+              env_array.join(" ")
+            else
+              env_array.map { |e| "#{e}" }.join(" ")
+            end
+      str += ' '
+      str
     end
 
     private
@@ -77,9 +71,12 @@ module WWTD
     # internal api
     def sh(env, cmd=nil)
       cmd, env = env, {} unless cmd
-      env = escaped_env(env)
-      puts cmd
-      system("#{env}#{cmd}")
+      str_env = escaped_env(env)
+      final_cmd = "cd #{Dir.pwd} && #{str_env}#{cmd}"
+      puts final_cmd
+      with_clean_env do
+        system(final_cmd)
+      end
     end
 
     def with_clean_dot_bundle
@@ -98,10 +95,10 @@ module WWTD
     def matrix(config)
       if config["env"] && config["env"].is_a?(Hash)
         global = if config["env"]["global"]
-          " " + config["env"]["global"].join(" ")
-        else
-          ""
-        end
+                   " " + config["env"]["global"].join(" ")
+                 else
+                   ""
+                 end
         if config["env"]["matrix"]
           config["env"] = config["env"]["matrix"].map { |v| v + global }
         else

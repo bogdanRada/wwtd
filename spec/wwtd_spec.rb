@@ -140,7 +140,7 @@ describe WWTD do
         sections = WWTD::Run::SCRIPT_SECTIONS.map { |s| "#{s}: echo '#{s}'" }.shuffle.join("\n")
 
         write ".travis.yml", sections
-        expected = WWTD::Run::SCRIPT_SECTIONS.map { |s| "echo '#{s}'\n#{s}" }.join("\n")
+        expected = WWTD::Run::SCRIPT_SECTIONS.map { |s| "cd #{Dir.pwd} && echo '#{s}'\n#{s}" }.join("\n")
         wwtd("--use #{WWTD::Run::SCRIPT_SECTIONS.join(",")}").should include expected
       end
     end
@@ -222,7 +222,7 @@ describe WWTD do
       write_default_rakefile
       result = wwtd("--only-bundle")
       ignore_ci_errors!(result)
-      result.should == "START \nbundle install --quiet\ntest \"only bundle\"\nSUCCESS \nrm -rf .bundle\n"
+      result.should == "START \ncd #{Dir.pwd} && bundle install --quiet\ntest \"only bundle\"\nSUCCESS \ncd #{Dir.pwd} && rm -rf .bundle\n"
     end
 
     it "casts ruby version to string when creating a path to a lock file" do
@@ -472,7 +472,7 @@ describe WWTD do
       it "runs only-bundle" do
         result = sh("bundle exec rake wwtd:bundle")
         ignore_ci_errors!(result)
-        result.should == "Ignoring: rvm\nSTART \nbundle install --quiet\ntest \"only bundle\"\nSUCCESS \nrm -rf .bundle\n"
+        result.should == "Ignoring: rvm\nSTART \ncd #{Dir.pwd} && bundle install --quiet\ntest \"only bundle\"\nSUCCESS \ncd #{Dir.pwd} && rm -rf .bundle\n"
       end
 
       context "when running itself" do
