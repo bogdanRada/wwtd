@@ -11,11 +11,11 @@ module WWTD
 
     def execute
       state = if Ruby.available?(config["rvm"])
-        yield(:start, config)
-        success? ? :success : :failure
-      else
-        :missing_ruby_version
-      end
+                yield(:start, config)
+                success? ? :success : :failure
+              else
+                :missing_ruby_version
+              end
 
       yield(state, config)
 
